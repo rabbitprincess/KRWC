@@ -242,6 +242,42 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
     }
 
 
+    /**
+     * @notice Increase the allowance by a given increment
+     * @param spender   Spender's address
+     * @param increment Amount of increase in allowance
+     * @return True if successful
+     */
+    function increaseAllowance(address spender, uint256 increment)
+        external
+        virtual
+        whenNotPaused
+        notBlacklisted(msg.sender)
+        notBlacklisted(spender)
+        returns (bool)
+    {
+        _increaseAllowance(msg.sender, spender, increment);
+        return true;
+    }
+
+    /**
+     * @notice Decrease the allowance by a given decrement
+     * @param spender   Spender's address
+     * @param decrement Amount of decrease in allowance
+     * @return True if successful
+     */
+    function decreaseAllowance(address spender, uint256 decrement)
+        external
+        virtual
+        whenNotPaused
+        notBlacklisted(msg.sender)
+        notBlacklisted(spender)
+        returns (bool)
+    {
+        _decreaseAllowance(msg.sender, spender, decrement);
+        return true;
+    }
+
     function _addMinter(address _minter, uint256 _allowance) internal override {
         require(_minter != address(0), "FiatToken: add zero minter");
         require(!minters[_minter], "FiatToken: already minter");
@@ -253,10 +289,6 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
         require(minters[_minter], "FiatToken: not a minter");
         delete minters[_minter];
         delete minterAllowed[_minter];
-    }
-
-    function _getAllowance(address _minter) internal view override returns (uint256) {
-        return minterAllowed[_minter];
     }
 
     function _increaseAllowance(
@@ -352,6 +384,33 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
     }
 
     /**
+     * @notice Update allowance with a signed permit
+     * @param owner       Token owner's address (Authorizer)
+     * @param spender     Spender's address
+     * @param value       Amount of allowance
+     * @param deadline    The time at which the signature expires (unix time), or max uint256 value to signal no expiration
+     * @param v           v of the signature
+     * @param r           r of the signature
+     * @param s           s of the signature
+     */
+    function permit(
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    )
+        external
+        virtual
+        whenNotPaused
+        notBlacklisted(owner)
+        notBlacklisted(spender)
+    {
+        _permit(owner, spender, value, deadline, v, r, s);
+    }
+    /**
      * @notice Execute a transfer with a signed authorization
      * @dev EOA wallet signatures should be packed in the order of r, s, v.
      * @param from          Payer's address (Authorizer)
@@ -383,55 +442,6 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
     }
 
     /**
-     * @notice Receive a transfer with a signed authorization from the payer
-     * @dev This has an additional check to ensure that the payee's address
-     * matches the caller of this function to prevent front-running attacks.
-     * EOA wallet signatures should be packed in the order of r, s, v.
-     * @param from          Payer's address (Authorizer)
-     * @param to            Payee's address
-     * @param value         Amount to be transferred
-     * @param validAfter    The time after which this is valid (unix time)
-     * @param validBefore   The time before which this is valid (unix time)
-     * @param nonce         Unique nonce
-     * @param signature     Signature bytes signed by an EOA wallet or a contract wallet
-     */
-    function receiveWithAuthorization(
-        address from,
-        address to,
-        uint256 value,
-        uint256 validAfter,
-        uint256 validBefore,
-        bytes32 nonce,
-        bytes memory signature
-    ) external whenNotPaused notBlacklisted(from) notBlacklisted(to) {
-        _receiveWithAuthorization(
-            from,
-            to,
-            value,
-            validAfter,
-            validBefore,
-            nonce,
-            signature
-        );
-    }
-
-    /**
-     * @notice Attempt to cancel an authorization
-     * @dev Works only if the authorization is not yet used.
-     * EOA wallet signatures should be packed in the order of r, s, v.
-     * @param authorizer    Authorizer's address
-     * @param nonce         Nonce of the authorization
-     * @param signature     Signature bytes signed by an EOA wallet or a contract wallet
-     */
-    function cancelAuthorization(
-        address authorizer,
-        bytes32 nonce,
-        bytes memory signature
-    ) external whenNotPaused {
-        _cancelAuthorization(authorizer, nonce, signature);
-    }
-
-        /**
      * @notice Execute a transfer with a signed authorization
      * @param from          Payer's address (Authorizer)
      * @param to            Payee's address
@@ -471,6 +481,39 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
      * @notice Receive a transfer with a signed authorization from the payer
      * @dev This has an additional check to ensure that the payee's address
      * matches the caller of this function to prevent front-running attacks.
+     * EOA wallet signatures should be packed in the order of r, s, v.
+     * @param from          Payer's address (Authorizer)
+     * @param to            Payee's address
+     * @param value         Amount to be transferred
+     * @param validAfter    The time after which this is valid (unix time)
+     * @param validBefore   The time before which this is valid (unix time)
+     * @param nonce         Unique nonce
+     * @param signature     Signature bytes signed by an EOA wallet or a contract wallet
+     */
+    function receiveWithAuthorization(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        bytes memory signature
+    ) external whenNotPaused notBlacklisted(from) notBlacklisted(to) {
+        _receiveWithAuthorization(
+            from,
+            to,
+            value,
+            validAfter,
+            validBefore,
+            nonce,
+            signature
+        );
+    }
+
+    /**
+     * @notice Receive a transfer with a signed authorization from the payer
+     * @dev This has an additional check to ensure that the payee's address
+     * matches the caller of this function to prevent front-running attacks.
      * @param from          Payer's address (Authorizer)
      * @param to            Payee's address
      * @param value         Amount to be transferred
@@ -508,6 +551,22 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
     /**
      * @notice Attempt to cancel an authorization
      * @dev Works only if the authorization is not yet used.
+     * EOA wallet signatures should be packed in the order of r, s, v.
+     * @param authorizer    Authorizer's address
+     * @param nonce         Nonce of the authorization
+     * @param signature     Signature bytes signed by an EOA wallet or a contract wallet
+     */
+    function cancelAuthorization(
+        address authorizer,
+        bytes32 nonce,
+        bytes memory signature
+    ) external whenNotPaused {
+        _cancelAuthorization(authorizer, nonce, signature);
+    }
+
+    /**
+     * @notice Attempt to cancel an authorization
+     * @dev Works only if the authorization is not yet used.
      * @param authorizer    Authorizer's address
      * @param nonce         Nonce of the authorization
      * @param v             v of the signature
@@ -524,31 +583,4 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
         _cancelAuthorization(authorizer, nonce, v, r, s);
     }
 
-    /**
-     * @notice Update allowance with a signed permit
-     * @param owner       Token owner's address (Authorizer)
-     * @param spender     Spender's address
-     * @param value       Amount of allowance
-     * @param deadline    The time at which the signature expires (unix time), or max uint256 value to signal no expiration
-     * @param v           v of the signature
-     * @param r           r of the signature
-     * @param s           s of the signature
-     */
-    function permit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    )
-        external
-        virtual
-        whenNotPaused
-        notBlacklisted(owner)
-        notBlacklisted(spender)
-    {
-        _permit(owner, spender, value, deadline, v, r, s);
-    }
 }

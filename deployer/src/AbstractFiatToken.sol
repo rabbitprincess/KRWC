@@ -16,15 +16,15 @@ abstract contract AbstractFiatToken is IERC20 {
         uint256 value
     ) internal virtual;
 
-    // function _increaseAllowance(
-    //     address owner,
-    //     address spender,
-    //     uint256 increment
-    // ) internal virtual;
+    function _increaseAllowance(
+        address owner,
+        address spender,
+        uint256 increment
+    ) internal virtual;
 
-    // function _decreaseAllowance(
-    //     address owner,
-    //     address spender,
-    //     uint256 decrement
-    // ) internal virtual;
+    function _decreaseAllowance(
+        address owner,
+        address spender,
+        uint256 decrement
+    ) internal virtual;
 }
