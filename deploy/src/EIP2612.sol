@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import { AbstractFiatToken } from "./AbstractFiatToken.sol";
 import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 /**
@@ -15,6 +14,13 @@ abstract contract EIP2612 is AbstractFiatToken, EIP712 {
     bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
 
     mapping(address => uint256) private _permitNonces;
+
+    /**
+     * @notice In the inheriting contract’s constructor, ensure you call EIP712(name, version).
+     * @param name    EIP-712 domain name
+     * @param version EIP-712 domain version
+     */
+    constructor(string memory name, string memory version) EIP712(name, version) {}
 
     /**
      * @notice Nonces for permit
@@ -65,31 +71,23 @@ abstract contract EIP2612 is AbstractFiatToken, EIP712 {
     ) internal {
         require(
             deadline == type(uint256).max || deadline >= block.timestamp,
-            "FiatToken: permit is expired"
+            "EIP2612: permit expired"
         );
-
-        bytes32 typedDataHash = MessageHashUtils.toTypedDataHash(
-            _domainSeparatorV4(),
-            keccak256(
-                abi.encode(
-                    PERMIT_TYPEHASH,
-                    owner,
-                    spender,
-                    value,
-                    _permitNonces[owner]++,
-                    deadline
-                )
+        bytes32 structHash = keccak256(
+            abi.encode(
+                PERMIT_TYPEHASH,
+                owner,
+                spender,
+                value,
+                _permitNonces[owner]++,
+                deadline
             )
         );
+        bytes32 digest = _hashTypedDataV4(structHash);
         require(
-            SignatureChecker.isValidSignatureNow(
-                owner,
-                typedDataHash,
-                signature
-            ),
+            SignatureChecker.isValidSignatureNow(owner, digest, signature),
             "EIP2612: invalid signature"
         );
-
         _approve(owner, spender, value);
     }
 }
