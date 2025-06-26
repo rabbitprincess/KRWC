@@ -47,7 +47,7 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
         require(newMasterMinter != address(0), "FiatToken: new masterMinter is the zero address");
         require(newPauser       != address(0), "FiatToken: new pauser is the zero address");
         require(newBlacklister  != address(0), "FiatToken: new blacklister is the zero address");
-        require(newRescuer      != address(0), "FiatToken: new blacklister is the zero address");
+        require(newRescuer      != address(0), "FiatToken: new rescuer is the zero address");
 
         name      = tokenName;
         symbol    = tokenSymbol;
@@ -70,47 +70,6 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
     }
     function updateRescuer(address newRescuer) external onlyOwner {
         _updateRescuer(newRescuer);
-    }
-
-    function mint(address _to, uint256 _amount)
-        external
-        whenNotPaused
-        onlyMinters
-        notBlacklisted(msg.sender)
-        notBlacklisted(_to)
-        returns (bool)
-    {
-        require(_to != address(0), "FiatToken: mint to the zero address");
-        require(_amount > 0, "FiatToken: mint amount not greater than 0");
-
-        uint256 mintingAllowedAmount = minterAllowed[msg.sender];
-        require(
-            _amount <= mintingAllowedAmount,
-            "FiatToken: mint amount exceeds minterAllowance"
-        );
-
-        totalSupply_ += _amount;
-        _setBalance(_to, _balanceOf(_to) + _amount);
-        minterAllowed[msg.sender] = mintingAllowedAmount - _amount;
-        emit Mint(msg.sender, _to, _amount);
-        emit Transfer(address(0), _to, _amount);
-        return true;
-    }
-
-    function burn(uint256 _amount)
-        external
-        whenNotPaused
-        onlyMinters
-        notBlacklisted(msg.sender)
-    {
-        uint256 balance = _balanceOf(msg.sender);
-        require(_amount > 0, "FiatToken: burn amount not greater than 0");
-        require(balance >= _amount, "FiatToken: burn amount exceeds balance");
-
-        totalSupply_ -= _amount;
-        _setBalance(msg.sender, balance - _amount);
-        emit Burn(msg.sender, _amount);
-        emit Transfer(msg.sender, address(0), _amount);
     }
 
     /**
@@ -241,6 +200,58 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
         emit Transfer(from, to, value);
     }
 
+    /**
+     * @notice Mints new tokens to a specified address.
+     * @dev Only callable by authorized minters not blacklisted.
+     * @param _to The address to mint to.
+     * @param _amount The amount to mint.
+     * @return True if the operation was successful.
+     */
+    function mint(address _to, uint256 _amount)
+        external
+        whenNotPaused
+        onlyMinters
+        notBlacklisted(msg.sender)
+        notBlacklisted(_to)
+        returns (bool)
+    {
+        require(_to != address(0), "FiatToken: mint to the zero address");
+        require(_amount > 0, "FiatToken: mint amount not greater than 0");
+
+        uint256 mintingAllowedAmount = minterAllowed[msg.sender];
+        require(
+            _amount <= mintingAllowedAmount,
+            "FiatToken: mint amount exceeds minterAllowance"
+        );
+
+        totalSupply_ += _amount;
+        _setBalance(_to, _balanceOf(_to) + _amount);
+        minterAllowed[msg.sender] = mintingAllowedAmount - _amount;
+        emit Mint(msg.sender, _to, _amount);
+        emit Transfer(address(0), _to, _amount);
+        return true;
+    }
+
+    /**
+     * @notice Burns tokens from the caller's account.
+     * @dev Only callable by authorized minters not blacklisted.
+     * @param _amount The amount to burn.
+     */
+    function burn(uint256 _amount)
+        external
+        whenNotPaused
+        onlyMinters
+        notBlacklisted(msg.sender)
+    {
+        uint256 balance = _balanceOf(msg.sender);
+        require(_amount > 0, "FiatToken: burn amount not greater than 0");
+        require(balance >= _amount, "FiatToken: burn amount exceeds balance");
+
+        totalSupply_ -= _amount;
+        _setBalance(msg.sender, balance - _amount);
+        emit Burn(msg.sender, _amount);
+        emit Transfer(msg.sender, address(0), _amount);
+    }
 
     /**
      * @notice Increase the allowance by a given increment
@@ -278,6 +289,12 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
         return true;
     }
 
+    /**
+     * @notice Adds a new minter with an allowed mint amount.
+     * @dev Internal function used by RoleMint.
+     * @param _minter The address to add as minter.
+     * @param _allowance The minting allowance for the minter.
+     */
     function _addMinter(address _minter, uint256 _allowance) internal override {
         require(_minter != address(0), "FiatToken: add zero minter");
         require(!minters[_minter], "FiatToken: already minter");
@@ -285,12 +302,33 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
         minterAllowed[_minter] = _allowance;
     }
 
+    /**
+     * @notice Removes a minter.
+     * @dev Internal function used by RoleMint.
+     * @param _minter The minter address to remove.
+     */
     function _removeMinter(address _minter) internal override {
         require(minters[_minter], "FiatToken: not a minter");
         delete minters[_minter];
         delete minterAllowed[_minter];
     }
 
+    /**
+     * @notice Gets the allowed minting amount for a minter.
+     * @param _minter The minter address.
+     * @return The allowed mint amount.
+     */
+    function _getAllowance(address _minter) internal view override returns (uint256) {
+        return minterAllowed[_minter];
+    }
+
+    /**
+     * @notice Increases the allowance for a spender.
+     * @dev Internal function, used by increaseAllowance.
+     * @param owner The token owner's address.
+     * @param spender The spender's address.
+     * @param increment The increment to allowance.
+     */
     function _increaseAllowance(
         address owner,
         address spender,
@@ -299,6 +337,13 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
         _approve(owner, spender, allowed[owner][spender] + increment);
     }
 
+    /**
+     * @notice Decreases the allowance for a spender.
+     * @dev Internal function, used by decreaseAllowance.
+     * @param owner The token owner's address.
+     * @param spender The spender's address.
+     * @param decrement The decrement to allowance.
+     */
     function _decreaseAllowance(
         address owner,
         address spender,
@@ -311,6 +356,13 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
         );
     }
 
+    /**
+     * @notice Approves a spender to spend tokens.
+     * @dev Internal function to update allowance.
+     * @param owner The token owner's address.
+     * @param spender The spender's address.
+     * @param value The allowance value to set.
+     */
     function _approve(
         address owner,
         address spender,
@@ -322,7 +374,12 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
         emit Approval(owner, spender, value);
     }
 
-
+    /**
+     * @notice Checks if an account is blacklisted.
+     * @dev Internal view for blacklist status.
+     * @param _account The address to check.
+     * @return True if blacklisted, false otherwise.
+     */
     function _isBlacklisted(address _account)
         internal
         override
@@ -332,10 +389,18 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
         return balanceAndBlacklistStates[_account] >> 255 == 1;
     }
 
+    /**
+     * @notice Blacklists an account.
+     * @param _account The address to blacklist.
+     */
     function _blacklist(address _account) internal override {
         _setBlacklistState(_account, true);
     }
 
+    /**
+     * @notice Removes an account from blacklist.
+     * @param _account The address to unblacklist.
+     */
     function _unBlacklist(address _account) internal override {
         _setBlacklistState(_account, false);
     }
@@ -348,6 +413,12 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
             : _balanceOf(_account);
     }
 
+    /**
+     * @notice Sets the balance for an account.
+     * @dev Internal balance setter. Reverts if balance exceeds uint255.
+     * @param _account The address to set balance for.
+     * @param _balance The balance to set.
+     */
     function _setBalance(address _account, uint256 _balance) internal virtual {
         require(
             _balance <= ((1 << 255) - 1),
@@ -356,6 +427,11 @@ contract FiatToken is AbstractFiatToken, EIP2612, EIP3009, Ownable, RoleMint, Ro
         balanceAndBlacklistStates[_account] = _balance;
     }
 
+    /**
+     * @notice Gets the balance of an account.
+     * @param _account The address to check.
+     * @return The balance of the account.
+     */
     function _balanceOf(address _account)
         internal
         view
