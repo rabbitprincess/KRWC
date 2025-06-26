@@ -16,13 +16,6 @@ abstract contract EIP2612 is AbstractFiatToken, EIP712 {
     mapping(address => uint256) private _permitNonces;
 
     /**
-     * @notice In the inheriting contract’s constructor, ensure you call EIP712(name, version).
-     * @param name    EIP-712 domain name
-     * @param version EIP-712 domain version
-     */
-    constructor(string memory name, string memory version) EIP712(name, version) {}
-
-    /**
      * @notice Nonces for permit
      * @param owner Token owner's address (Authorizer)
      * @return Next nonce

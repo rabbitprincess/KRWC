@@ -4,8 +4,7 @@ pragma solidity ^0.8.20;
 abstract contract RoleMint {
     address private _masterMinter;
 
-    mapping(address => uint256) private _minterAllowance;
-
+    event MasterMinterChanged(address indexed previous, address indexed current);
     event MinterAdded(address indexed minter, uint256 initialAllowance);
     event MinterRemoved(address indexed minter);
     event MinterAllowanceIncremented(
@@ -21,42 +20,65 @@ abstract contract RoleMint {
         uint256 newAllowance
     );
 
-    modifier onlyMinter() {
-        require(_minterAllowance[msg.sender] > 0, "Mintable: caller is not a minter");
+    modifier onlyMasterMinter() {
+        require(msg.sender == _masterMinter, "RoleMint: caller is not masterMinter");
         _;
     }
 
-    function isMinter(address account) public view returns (bool) {
-        return _minterAllowance[account] > 0;
+    function _updateMasterMinter(address newMasterMinter) internal {
+        require(newMasterMinter != address(0), "RoleMint: zero address");
+        emit MasterMinterChanged(_masterMinter, newMasterMinter);
+        _masterMinter = newMasterMinter;
     }
 
-    function minterAllowance(address account) public view returns (uint256) {
-        return _minterAllowance[account];
+    function masterMinter() public view returns (address) {
+        return _masterMinter;
     }
 
-    function _addMinter(address minter, uint256 allowance) internal {
-        require(minter != address(0), "Mintable: zero address");
-        require(_minterAllowance[minter] == 0, "Mintable: already a minter");
-        _minterAllowance[minter] = allowance;
+    modifier onlyMinters() {
+        require(_getAllowance(msg.sender) > 0, "RoleMint: caller is not a minter");
+        _;
+    }
+
+    function addMinter(address minter, uint256 allowance) external onlyMasterMinter {
+        _addMinter(minter, allowance);
         emit MinterAdded(minter, allowance);
     }
 
-    function _removeMinter(address minter) internal {
-        require(_minterAllowance[minter] > 0, "Mintable: not a minter");
-        _minterAllowance[minter] = 0;
+    function removeMinter(address minter) external onlyMasterMinter {
+        _removeMinter(minter);
         emit MinterRemoved(minter);
     }
 
-    function _increaseMinterAllowance(address minter, uint256 increment) internal {
-        require(_minterAllowance[minter] > 0, "Mintable: not a minter");
-        _minterAllowance[minter] += increment;
-        emit MinterAllowanceIncremented(msg.sender, minter, increment, _minterAllowance[minter]);
+    function isMinter(address minter) public view returns (bool) {
+        return _getAllowance(minter) > 0;
     }
 
-    function _decreaseMinterAllowance(address minter, uint256 decrement) internal {
-        require(_minterAllowance[minter] > 0, "Mintable: not a minter");
-        require(_minterAllowance[minter] >= decrement, "Mintable: decrement exceeds allowance");
-        _minterAllowance[minter] -= decrement;
-        emit MinterAllowanceDecremented(msg.sender, minter, decrement, _minterAllowance[minter]);
+    function getMinterAllowance(address minter) public view returns (uint256) {
+        return _getAllowance(minter);
     }
+
+    function increaseAllowance(address owner, address spender, uint256 increment) external onlyMasterMinter {
+        require(owner != address(0), "RoleMint: zero address");
+        require(increment > 0, "RoleMint: zero increment");
+        _increaseAllowance(owner, spender, increment);
+
+        uint256 newAllow = _getAllowance(owner);
+        emit MinterAllowanceIncremented(msg.sender, owner, increment, newAllow);
+    }
+
+    function decreaseAllowance(address owner, address spender, uint256 decrement) external onlyMasterMinter {
+        require(owner != address(0), "RoleMint: zero address");
+        require(decrement > 0, "RoleMint: zero decrement");
+        _decreaseAllowance(owner, spender, decrement);
+
+        uint256 newAllow = _getAllowance(owner);
+        emit MinterAllowanceDecremented(msg.sender, owner, decrement, newAllow);
+    }
+
+    function _addMinter(address _minter, uint256 _allowance) internal virtual;
+    function _removeMinter(address _minter) internal virtual;
+    function _getAllowance(address _minter) internal view virtual returns (uint256);
+    function _increaseAllowance(address owner, address spender, uint256 increment) internal virtual;
+    function _decreaseAllowance(address owner, address spender, uint256 decrement) internal virtual;
 }

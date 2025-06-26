@@ -13,7 +13,7 @@ abstract contract RoleBlacklist {
         _;
     }
 
-    function _updateBlacklister(address newBlacklister) internal virtual {
+    function _updateBlacklister(address newBlacklister) internal {
         require(newBlacklister != address(0), "RoleBlacklist: new blacklister is the zero address");
         address old = _blacklister;
         _blacklister = newBlacklister;
@@ -22,6 +22,14 @@ abstract contract RoleBlacklist {
 
     function blacklister() public view returns (address) {
         return _blacklister;
+    }
+
+    modifier notBlacklisted(address _account) {
+        require(
+            !_isBlacklisted(_account),
+            "RoleBlacklist: account is blacklisted"
+        );
+        _;
     }
 
     function isBlacklisted(address account) external view returns (bool) {
