@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-abstract contract Mintable {
+abstract contract RoleMint {
+    address private _masterMinter;
+
     mapping(address => uint256) private _minterAllowance;
 
     event MinterAdded(address indexed minter, uint256 initialAllowance);
@@ -18,7 +20,6 @@ abstract contract Mintable {
         uint256 decrement,
         uint256 newAllowance
     );
-
 
     modifier onlyMinter() {
         require(_minterAllowance[msg.sender] > 0, "Mintable: caller is not a minter");
