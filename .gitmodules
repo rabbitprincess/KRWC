@@ -1,6 +1,6 @@
 [submodule "deploy/lib/forge-std"]
-	path = deploy/lib/forge-std
+	path = deployer/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
 [submodule "deploy/lib/openzeppelin-contracts"]
-	path = deploy/lib/openzeppelin-contracts
+	path = deployer/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
